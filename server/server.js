@@ -9,7 +9,16 @@ const io = socketIO(server, {
 });
 
 let users = {}; // Store users by socket ID
-let color_number = 1
+let color_number = 1;
+let walls = []; // Store all walls
+let tables = [];
+
+function generateWallId() {
+    return 'wall_' + Math.random().toString(36).substr(2, 9);
+}
+function generateTableId() {
+    return 'table_' + Math.random().toString(36).substr(2, 9);
+}
 
 io.on('connection', socket => {
     console.log('A user connected:', socket.id);
@@ -25,7 +34,7 @@ io.on('connection', socket => {
         color: color_number
     };
 
-    color_number > 7 ? color_number = 1 : color_number++
+    color_number > 7 ? color_number = 1 : color_number++;
 
     Object.keys(users).forEach((id, index) => {
         users[id].index = index + 1;
@@ -33,6 +42,42 @@ io.on('connection', socket => {
 
     // Send updated list to all clients
     io.emit('userList', Object.values(users));
+
+    // Send current wall and table lists to the new client
+    socket.emit('wallList', walls);
+    socket.emit('tableList', tables);
+
+    // Wall creation
+    socket.on('addWall', (wallData) => {
+        wallData.id = generateWallId();
+        walls.push(wallData);
+        io.emit('wallList', walls);
+    });
+
+    // Wall update
+    socket.on('updateWall', (wallData) => {
+        const idx = walls.findIndex(w => w.id === wallData.id);
+        if (idx !== -1) {
+            walls[idx] = wallData;
+            io.emit('wallList', walls);
+        }
+    });
+
+    // Table creation
+    socket.on('addTable', (tableData) => {
+        tableData.id = generateTableId();
+        tables.push(tableData);
+        io.emit('tableList', tables);
+    });
+
+    // Table update
+    socket.on('updateTable', (tableData) => {
+        const idx = tables.findIndex(t => t.id === tableData.id);
+        if (idx !== -1) {
+            tables[idx] = tableData;
+            io.emit('tableList', tables);
+        }
+    });
 
     socket.on('move', (data) => {
         if (users[data.id]) {
@@ -46,11 +91,6 @@ io.on('connection', socket => {
         console.log('Message received:', msg);
         // Broadcast to others, include sender's name
         socket.broadcast.emit('message', { ...msg, sender: users[socket.id]?.name || msg.sender });
-    });
-
-    socket.on('addWall', (wallData) => {
-        // Broadcast to all clients, including the sender
-        io.emit('addWall', wallData);
     });
 
     socket.on('disconnect', () => {

@@ -78,6 +78,12 @@ transformControls.setMode('translate'); // Default to translate
 transformControls.addEventListener('dragging-changed', function (event) {
     orbit.enabled = !event.value;
 });
+transformControls.addEventListener('objectChange', function (event) {
+    if (mode === 'edit' && selectedWall) {
+        if (selectedWall.userData.isWall) emitWallUpdate(selectedWall);
+        if (selectedWall.userData.isTable) emitTableUpdate(selectedWall);
+    }
+});
 
 // === MOVEMENT CONTROL ===
 const keys = {};
@@ -133,7 +139,7 @@ setMode('play');
 // === TABLE CREATION AND MANIPULATION ===
 function createTable() {
     const tableLoader = new GLTFLoader();
-    tableLoader.load('./model/table/table.glb', gltf => {
+    tableLoader.load('./model/table/scene.gltf', gltf => {
         const table = gltf.scene;
         table.position.set(0, 1, 0);
         table.userData.isTable = true;
@@ -153,6 +159,7 @@ addTableBtn.addEventListener('click', createTable);
 
 // === WALL CREATION AND MANIPULATION (update for mode) ===
 function createWall() {
+    console.log('createWall called');
     const geometry = new THREE.BoxGeometry(2, 2, 0.2);
     const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
     const wall = new THREE.Mesh(geometry, material);
@@ -160,14 +167,14 @@ function createWall() {
     wall.castShadow = true;
     wall.userData.isWall = true;
     scene.add(wall);
-    selectWall(wall); // Use same transform logic as table
-    // Emit wall creation to server
+    selectWall(wall);
     if (typeof socket !== 'undefined') {
+        console.log('Emitting addWall to server', socket && socket.connected);
         socket.emit('addWall', {
             position: { x: wall.position.x, y: wall.position.y, z: wall.position.z },
             rotation: { x: wall.rotation.x, y: wall.rotation.y, z: wall.rotation.z },
             scale: { x: wall.scale.x, y: wall.scale.y, z: wall.scale.z },
-            color: 0xffffff // or any color logic you want
+            color: 0xffffff
         });
     }
 }
@@ -247,6 +254,18 @@ function createPlayerModel(userId, position, onLoaded) {
     });
 }
 
+let socket; // Global socket variable
+let tables = []; // Store all tables
+
+function generateTableId() {
+    return 'table_' + Math.random().toString(36).substr(2, 9);
+}
+
+// === UTILITY ===
+function snapToGrid(value, gridSize = 1) {
+    return Math.round(value / gridSize) * gridSize;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // === MAIN MENU LOGIN ===
     let playerName = '';
@@ -278,8 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Socket/game logic moved to a function ---
     function startGame() {
-        // === SOCKET.IO CONNECTION ===
-        const socket = io('http://localhost:3000', { query: { name: playerName } });
+        socket = io('http://localhost:3000', { query: { name: playerName } });
         let currentUser = "";
         window._socket = socket; // for debugging
 
@@ -322,9 +340,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (label && label.element.textContent !== displayName) {
                         label.element.textContent = displayName;
                     }
-                }
-            });
-        });
+        }
+    });
+});
 
         socket.on('userMoved', ({ id, position }) => {
             const player = scene.getObjectByName(id);
@@ -333,17 +351,60 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        socket.on('addWall', (wallData) => {
-            // Create the wall in the scene using the received data
-            const geometry = new THREE.BoxGeometry(2, 2, 0.2);
-            const material = new THREE.MeshStandardMaterial({ color: wallData.color || 0xffffff });
-            const wall = new THREE.Mesh(geometry, material);
-            wall.position.set(wallData.position.x, wallData.position.y, wallData.position.z);
-            wall.rotation.set(wallData.rotation.x, wallData.rotation.y, wallData.rotation.z);
-            wall.scale.set(wallData.scale.x, wallData.scale.y, wallData.scale.z);
-            wall.castShadow = true;
-            wall.userData.isWall = true;
-            scene.add(wall);
+        // Wall sync: always render the full wall list
+        console.log('Registering wallList handler');
+        socket.on('wallList', (wallList) => {
+            console.log('wallList event received:', wallList);
+            scene.children
+                .filter(obj => obj.userData && obj.userData.isWall)
+                .forEach(obj => {
+                    if (selectedWall === obj) {
+                        transformControls.detach();
+                        selectedWall = null;
+                    }
+                    scene.remove(obj);
+                });
+            wallList.forEach(wallData => {
+                console.log('Wall from server:', wallData);
+                const geometry = new THREE.BoxGeometry(2, 2, 0.2);
+                const material = new THREE.MeshStandardMaterial({ color: wallData.color || 0xffffff });
+                const wall = new THREE.Mesh(geometry, material);
+                wall.position.set(wallData.position.x, wallData.position.y, wallData.position.z);
+                wall.rotation.set(wallData.rotation.x, wallData.rotation.y, wallData.rotation.z);
+                wall.scale.set(wallData.scale.x, wallData.scale.y, wallData.scale.z);
+                wall.castShadow = true;
+                wall.userData.isWall = true;
+                wall.userData.wallId = wallData.id;
+                scene.add(wall);
+            });
+        });
+
+        // Table sync: always render the full table list
+        console.log('Registering tableList handler');
+        socket.on('tableList', (tableList) => {
+            console.log('tableList event received:', tableList);
+            scene.children
+                .filter(obj => obj.userData && obj.userData.isTable)
+                .forEach(obj => {
+                    if (selectedWall === obj) {
+                        transformControls.detach();
+                        selectedWall = null;
+                    }
+                    scene.remove(obj);
+                });
+            tableList.forEach(tableData => {
+                console.log('Table from server:', tableData);
+                const tableLoader = new GLTFLoader();
+                tableLoader.load('./model/table/scene.gltf', gltf => {
+                    const table = gltf.scene;
+                    table.position.set(tableData.position.x, tableData.position.y, tableData.position.z);
+                    table.rotation.set(tableData.rotation.x, tableData.rotation.y, tableData.rotation.z);
+                    table.scale.set(tableData.scale.x, tableData.scale.y, tableData.scale.z);
+                    table.userData.isTable = true;
+                    table.userData.tableId = tableData.id;
+                    scene.add(table);
+                });
+            });
         });
 
         socket.on('addTable', (tableData) => {
@@ -399,23 +460,44 @@ document.addEventListener('DOMContentLoaded', function() {
             const input = document.getElementById('msg');
             const msg = input.value;
             if (!msg) {
-                document.getElementById('error').textContent = "Please enter your message";
+        document.getElementById('error').textContent = "Please enter your message";
                 return;
-            }
+    }
             input.value = "";
-            document.getElementById('error').textContent = "";
-            socket.emit('message', {
-                text: msg,
+    document.getElementById('error').textContent = "";
+    socket.emit('message', {
+        text: msg,
                 sender: playerName
-            });
-            const li = document.createElement('li');
+    });
+    const li = document.createElement('li');
             li.textContent = `You said: ${msg}`;
-            document.getElementById('messages').appendChild(li);
+    document.getElementById('messages').appendChild(li);
         };
-        socket.on('message', (msg) => {
-            const li = document.createElement('li');
+socket.on('message', (msg) => {
+    const li = document.createElement('li');
             li.textContent = `${msg.sender} said: ${msg.text}`;
-            document.getElementById('messages').appendChild(li);
+    document.getElementById('messages').appendChild(li);
         });
     }
 });
+
+function emitWallUpdate(wall) {
+    if (!wall.userData.wallId) return; // Only update if wall has an id
+    socket.emit('updateWall', {
+        id: wall.userData.wallId,
+        position: { x: wall.position.x, y: wall.position.y, z: wall.position.z },
+        rotation: { x: wall.rotation.x, y: wall.rotation.y, z: wall.rotation.z },
+        scale: { x: wall.scale.x, y: wall.scale.y, z: wall.scale.z },
+        color: wall.material.color.getHex()
+    });
+}
+
+function emitTableUpdate(table) {
+    if (!table.userData.tableId) return;
+    socket.emit('updateTable', {
+        id: table.userData.tableId,
+        position: { x: table.position.x, y: table.position.y, z: table.position.z },
+        rotation: { x: table.rotation.x, y: table.rotation.y, z: table.rotation.z },
+        scale: { x: table.scale.x, y: table.scale.y, z: table.scale.z }
+    });
+}
