@@ -6,6 +6,7 @@
 </head>
 <body>
     <h1>Socket.IO Client</h1>
+    <button id="addWallBtn">Add Wall</button>
     <input id="msg" type="text" placeholder="Message" />
     <button onclick="sendMessage()">Send</button>
     <button onclick="window.open(window.location.href, '_blank')">Open this in new tab</button>
@@ -18,12 +19,12 @@
     <!-- <div id="threejs"></div> -->
 
     <script type="importmap">
-    {
-        "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+          }
         }
-    }
     </script>
 
     <script type="module" src="main.js"></script>
