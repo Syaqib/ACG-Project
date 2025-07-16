@@ -12,12 +12,16 @@ let users = {}; // Store users by socket ID
 let color_number = 1;
 let walls = []; // Store all walls
 let tables = [];
+let chairs = [];
 
 function generateWallId() {
     return 'wall_' + Math.random().toString(36).substr(2, 9);
 }
 function generateTableId() {
     return 'table_' + Math.random().toString(36).substr(2, 9);
+}
+function generateChairId() {
+    return 'chair_' + Math.random().toString(36).substr(2, 9);
 }
 
 io.on('connection', socket => {
@@ -46,11 +50,17 @@ io.on('connection', socket => {
     // Send current wall and table lists to the new client
     socket.emit('wallList', walls);
     socket.emit('tableList', tables);
+    socket.emit('chairList', chairs);
 
     // Wall creation
     socket.on('addWall', (wallData) => {
         wallData.id = generateWallId();
         walls.push(wallData);
+        io.emit('wallList', walls);
+    });
+    // Wall deletion
+    socket.on('deleteWall', ({ id }) => {
+        walls = walls.filter(w => w.id !== id);
         io.emit('wallList', walls);
     });
 
@@ -69,6 +79,22 @@ io.on('connection', socket => {
         tables.push(tableData);
         io.emit('tableList', tables);
     });
+    // Table deletion
+    socket.on('deleteTable', ({ id }) => {
+        tables = tables.filter(t => t.id !== id);
+        io.emit('tableList', tables);
+    });
+    // Chair creation
+    socket.on('addChair', (chairData) => {
+        chairData.id = generateChairId();
+        chairs.push(chairData);
+        io.emit('chairList', chairs);
+    });
+    // Chair deletion
+    socket.on('deleteChair', ({ id }) => {
+        chairs = chairs.filter(c => c.id !== id);
+        io.emit('chairList', chairs);
+    });
 
     // Table update
     socket.on('updateTable', (tableData) => {
@@ -76,6 +102,14 @@ io.on('connection', socket => {
         if (idx !== -1) {
             tables[idx] = tableData;
             io.emit('tableList', tables);
+        }
+    });
+    // Chair update
+    socket.on('updateChair', (chairData) => {
+        const idx = chairs.findIndex(c => c.id === chairData.id);
+        if (idx !== -1) {
+            chairs[idx] = chairData;
+            io.emit('chairList', chairs);
         }
     });
 

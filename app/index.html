@@ -3,19 +3,26 @@
 <head>
     <title>Socket.IO Three.js</title>
     <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="mainMenu" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    <div id="splashScreen" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:#1976d2;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <h1 style="color:#fff;font-size:2.5em;letter-spacing:0.05em;">Virtual Showroom Explorer</h1>
+        <p style="color:#fff;font-size:1.2em;">Loading...</p>
+    </div>
+    <div id="mainMenu" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:#222;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <h1 style="color:#fff;margin-bottom:0.5em;">Virtual Showroom Explorer</h1>
         <h2 style="color:white;">Enter Your Name</h2>
         <input id="playerNameInput" type="text" placeholder="Your name" style="font-size:1.2em;padding:0.5em;" />
         <button id="enterGameBtn" style="font-size:1.2em;margin-top:1em;">Enter Game</button>
         <p id="loginError" style="color:red;"></p>
     </div>
-    <h1>Socket.IO Client</h1>
-    <div id="modeBar">
-        <button id="toggleModeBtn">Switch to Edit Mode</button>
-        <button id="addWallBtn" style="display:none;">Add Wall</button>
-        <button id="addTableBtn" style="display:none;">Add Table</button>
+    <h1>Virtual Showroom Explorer</h1>
+    <div id="modeBar" class="mode-bar">
+        <button id="toggleModeBtn" class="edit-btn">Switch to Edit Mode</button>
+        <button id="addWallBtn" class="edit-btn" style="display:none;">Add Wall</button>
+        <button id="addTableBtn" class="edit-btn" style="display:none;">Add Table</button>
+        <!-- Add Chair and Delete buttons will be injected by JS with class="edit-btn" -->
     </div>
     <input id="msg" type="text" placeholder="Message" />
     <button onclick="sendMessage()">Send</button>

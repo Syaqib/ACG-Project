@@ -22,7 +22,7 @@ document.body.appendChild(labelRenderer.domElement);
 
 // === SCENE & CAMERA ===
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // Sky blue
+scene.background = new THREE.Color(0xf5f5f5); // light, neutral background
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 5, -10);
 
@@ -42,17 +42,18 @@ scene.add(directionalLight);
 scene.add(directionalLight.target);
 
 // === FLOOR WITH GRID ===
-const floorGeometry = new THREE.PlaneGeometry(100, 100);
-const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x4caf50 }); //    
+const floorGeometry = new THREE.PlaneGeometry(300, 300); // much larger floor
+const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xe0d7c6 }); // warm, house-like color
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = 0;
 floor.receiveShadow = true;
 scene.add(floor);
 
-const grid = new THREE.GridHelper(100, 100, 'lightgray', 'black');
+const grid = new THREE.GridHelper(300, 100, 'lightgray', 'black');
 grid.position.y = 0.01; // Slightly above the floor to avoid z-fighting
 scene.add(grid);
+grid.visible = false; // Only show in edit mode
 
 // === ORBIT CONTROLS ===
 const orbit = new OrbitControls(camera, renderer.domElement);
@@ -116,20 +117,99 @@ const toggleModeBtn = document.getElementById('toggleModeBtn');
 const addWallBtn = document.getElementById('addWallBtn');
 const addTableBtn = document.getElementById('addTableBtn');
 
+function createObject(type, modelPath, userDataKey, emitEvent, defaultProps = {}) {
+    if (type === 'wall') {
+        const geometry = new THREE.BoxGeometry(2, 2, 0.2);
+        const material = new THREE.MeshStandardMaterial({ color: defaultProps.color || 0xffffff });
+        const wall = new THREE.Mesh(geometry, material);
+        wall.position.set(0, 1, 0);
+        wall.castShadow = true;
+        wall.userData[userDataKey] = true;
+        scene.add(wall);
+        selectWall(wall);
+        if (typeof socket !== 'undefined') {
+            socket.emit(emitEvent, {
+                position: { x: wall.position.x, y: wall.position.y, z: wall.position.z },
+                rotation: { x: wall.rotation.x, y: wall.rotation.y, z: wall.rotation.z },
+                scale: { x: wall.scale.x, y: wall.scale.y, z: wall.scale.z },
+                color: wall.material.color.getHex()
+            });
+        }
+    } else {
+        const loader = new GLTFLoader();
+        loader.load(modelPath, gltf => {
+            const obj = gltf.scene;
+            obj.position.set(0, 1, 0);
+            obj.userData[userDataKey] = true;
+            scene.add(obj);
+            selectWall(obj);
+            if (typeof socket !== 'undefined') {
+                socket.emit(emitEvent, {
+                    position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
+                    rotation: { x: obj.rotation.x, y: obj.rotation.y, z: obj.rotation.z },
+                    scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z }
+                });
+            }
+        });
+    }
+}
+
+function addEditButton(id, text, onClick) {
+    const btn = document.createElement('button');
+    btn.id = id;
+    btn.textContent = text;
+    btn.className = 'edit-btn';
+    btn.style.display = 'none';
+    btn.addEventListener('click', onClick);
+    document.getElementById('modeBar').appendChild(btn);
+    return btn;
+}
+
+const addChairBtn = addEditButton('addChairBtn', 'Add Chair', () => createObject('chair', './model/chair/rustic_chair/scene.gltf', 'isChair', 'addChair'));
+const deleteBtn = addEditButton('deleteBtn', 'Delete', function() {
+    if (!selectedWall) return;
+    if (selectedWall.userData.isWall) {
+        if (selectedWall.userData.wallId) {
+            socket.emit('deleteWall', { id: selectedWall.userData.wallId });
+        }
+    } else if (selectedWall.userData.isTable) {
+        if (selectedWall.userData.tableId) {
+            socket.emit('deleteTable', { id: selectedWall.userData.tableId });
+        }
+    } else if (selectedWall.userData.isChair) {
+        if (selectedWall.userData.chairId) {
+            socket.emit('deleteChair', { id: selectedWall.userData.chairId });
+        }
+    }
+    scene.remove(selectedWall);
+    transformControls.detach();
+    selectedWall = null;
+});
+addWallBtn.classList.add('edit-btn');
+addTableBtn.classList.add('edit-btn');
+addWallBtn.onclick = () => createObject('wall', null, 'isWall', 'addWall', { color: 0xffffff });
+addTableBtn.onclick = () => createObject('table', './model/table/scene.gltf', 'isTable', 'addTable');
+
 function setMode(newMode) {
     mode = newMode;
     if (mode === 'edit') {
         toggleModeBtn.textContent = 'Switch to Play Mode';
         addWallBtn.style.display = '';
         addTableBtn.style.display = '';
+        addChairBtn.style.display = '';
+        deleteBtn.style.display = '';
         transformControls.enabled = true;
+        grid.visible = true;
     } else {
         toggleModeBtn.textContent = 'Switch to Edit Mode';
         addWallBtn.style.display = 'none';
         addTableBtn.style.display = 'none';
+        addChairBtn.style.display = 'none';
+        deleteBtn.style.display = 'none';
         transformControls.detach();
         transformControls.enabled = false;
         selectedWall = null;
+        grid.visible = false;
     }
 }
 
@@ -180,6 +260,26 @@ function createWall() {
 }
 addWallBtn.onclick = createWall;
 
+function createChair() {
+    const chairLoader = new GLTFLoader();
+    chairLoader.load('./model/chair/rustic_chair/scene.gltf', gltf => {
+        const chair = gltf.scene;
+        chair.position.set(0, 1, 0);
+        chair.userData.isChair = true;
+        scene.add(chair);
+        selectWall(chair); // Use same transform logic as wall/table
+        // Emit chair creation to server
+        if (typeof socket !== 'undefined') {
+            socket.emit('addChair', {
+                position: { x: chair.position.x, y: chair.position.y, z: chair.position.z },
+                rotation: { x: chair.rotation.x, y: chair.rotation.y, z: chair.rotation.z },
+                scale: { x: chair.scale.x, y: chair.scale.y, z: chair.scale.z }
+            });
+        }
+    });
+}
+addChairBtn.addEventListener('click', createChair);
+
 function selectWall(wall) {
     if (mode !== 'edit') return;
     if (selectedWall) {
@@ -195,7 +295,7 @@ function selectWall(wall) {
 
 // Update pointer events for edit mode
 function isMoveableObject(obj) {
-    return obj.userData.isWall || obj.userData.isTable;
+    return obj.userData.isWall || obj.userData.isTable || obj.userData.isChair;
 }
 
 document.addEventListener('pointerdown', (event) => {
@@ -267,6 +367,14 @@ function snapToGrid(value, gridSize = 1) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Splash screen logic
+    const splash = document.getElementById('splashScreen');
+    const mainMenu = document.getElementById('mainMenu');
+    mainMenu.style.display = 'none';
+    setTimeout(() => {
+        splash.style.display = 'none';
+        mainMenu.style.display = 'flex';
+    }, 1000);
     // === MAIN MENU LOGIN ===
     let playerName = '';
     let gameStarted = false;
@@ -501,3 +609,23 @@ function emitTableUpdate(table) {
         scale: { x: table.scale.x, y: table.scale.y, z: table.scale.z }
     });
 }
+
+deleteBtn.addEventListener('click', function() {
+    if (!selectedWall) return;
+    if (selectedWall.userData.isWall) {
+        if (selectedWall.userData.wallId) {
+            socket.emit('deleteWall', { id: selectedWall.userData.wallId });
+        }
+    } else if (selectedWall.userData.isTable) {
+        if (selectedWall.userData.tableId) {
+            socket.emit('deleteTable', { id: selectedWall.userData.tableId });
+        }
+    } else if (selectedWall.userData.isChair) {
+        if (selectedWall.userData.chairId) {
+            socket.emit('deleteChair', { id: selectedWall.userData.chairId });
+        }
+    }
+    scene.remove(selectedWall);
+    transformControls.detach();
+    selectedWall = null;
+});
