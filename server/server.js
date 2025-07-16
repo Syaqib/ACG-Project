@@ -14,9 +14,13 @@ let color_number = 1
 io.on('connection', socket => {
     console.log('A user connected:', socket.id);
 
+    // Get name from handshake query
+    const name = socket.handshake.query && socket.handshake.query.name ? String(socket.handshake.query.name) : `User`;
+
     // Add to user list
     users[socket.id] = { 
         id: socket.id,
+        name: name,
         position: { x: 0, y: 0, z: 0 },
         color: color_number
     };
@@ -33,14 +37,20 @@ io.on('connection', socket => {
     socket.on('move', (data) => {
         if (users[data.id]) {
             users[data.id].position = data.position;
-            socket.broadcast.emit('userMoved', data); // only send to others
+            // Broadcast with name
+            socket.broadcast.emit('userMoved', { id: data.id, position: data.position, name: users[data.id].name });
         }
     });
 
     socket.on('message', msg => {
         console.log('Message received:', msg);
-        // Broadcast to others
-        socket.broadcast.emit('message', msg);
+        // Broadcast to others, include sender's name
+        socket.broadcast.emit('message', { ...msg, sender: users[socket.id]?.name || msg.sender });
+    });
+
+    socket.on('addWall', (wallData) => {
+        // Broadcast to all clients, including the sender
+        io.emit('addWall', wallData);
     });
 
     socket.on('disconnect', () => {

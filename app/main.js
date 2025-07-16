@@ -22,20 +22,28 @@ document.body.appendChild(labelRenderer.domElement);
 
 // === SCENE & CAMERA ===
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb); // Sky blue
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 5, -10);
 
 // === LIGHTING ===
-const ambientLight = new THREE.AmbientLight(0xffffff, 2);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-directionalLight.position.set(5, 10, 7.5);
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+hemiLight.position.set(0, 20, 0);
+scene.add(hemiLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+directionalLight.position.set(10, 20, 10);
+directionalLight.castShadow = true;
+directionalLight.target.position.set(0, 0, 0);
 scene.add(directionalLight);
+scene.add(directionalLight.target);
 
 // === FLOOR WITH GRID ===
 const floorGeometry = new THREE.PlaneGeometry(100, 100);
-const floorMaterial = new THREE.MeshStandardMaterial({ color: 'gray' });
+const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x4caf50 }); //    
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = 0;
@@ -73,6 +81,8 @@ transformControls.addEventListener('dragging-changed', function (event) {
 
 // === MOVEMENT CONTROL ===
 const keys = {};
+let selectedWall = null;
+let draggingWall = false;
 document.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
     if (!selectedWall) return;
@@ -94,42 +104,95 @@ let velocity = new THREE.Vector3();
 let forward = new THREE.Vector3();
 let right = new THREE.Vector3();
 
-// === WALL CREATION AND MANIPULATION ===
-let selectedWall = null;
-let draggingWall = false;
+// === MODE TOGGLE ===
+let mode = 'play'; // 'play' or 'edit'
+const toggleModeBtn = document.getElementById('toggleModeBtn');
+const addWallBtn = document.getElementById('addWallBtn');
+const addTableBtn = document.getElementById('addTableBtn');
 
-function snapToGrid(value, gridSize = 1) {
-    return Math.round(value / gridSize) * gridSize;
+function setMode(newMode) {
+    mode = newMode;
+    if (mode === 'edit') {
+        toggleModeBtn.textContent = 'Switch to Play Mode';
+        addWallBtn.style.display = '';
+        addTableBtn.style.display = '';
+        transformControls.enabled = true;
+    } else {
+        toggleModeBtn.textContent = 'Switch to Edit Mode';
+        addWallBtn.style.display = 'none';
+        addTableBtn.style.display = 'none';
+        transformControls.detach();
+        transformControls.enabled = false;
+        selectedWall = null;
+    }
 }
 
+toggleModeBtn.onclick = () => setMode(mode === 'play' ? 'edit' : 'play');
+setMode('play');
+
+// === TABLE CREATION AND MANIPULATION ===
+function createTable() {
+    const tableLoader = new GLTFLoader();
+    tableLoader.load('./model/table/table.glb', gltf => {
+        const table = gltf.scene;
+        table.position.set(0, 1, 0);
+        table.userData.isTable = true;
+        scene.add(table);
+        selectWall(table); // Use same transform logic as wall
+        // Emit table creation to server
+        if (typeof socket !== 'undefined') {
+            socket.emit('addTable', {
+                position: { x: table.position.x, y: table.position.y, z: table.position.z },
+                rotation: { x: table.rotation.x, y: table.rotation.y, z: table.rotation.z },
+                scale: { x: table.scale.x, y: table.scale.y, z: table.scale.z }
+            });
+        }
+    });
+}
+addTableBtn.addEventListener('click', createTable);
+
+// === WALL CREATION AND MANIPULATION (update for mode) ===
 function createWall() {
-    const geometry = new THREE.BoxGeometry(2, 2, 0.2); // default wall size
+    const geometry = new THREE.BoxGeometry(2, 2, 0.2);
     const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
     const wall = new THREE.Mesh(geometry, material);
-    wall.position.set(0, 1, 0); // y=1 so it sits on floor
+    wall.position.set(0, 1, 0);
     wall.castShadow = true;
     wall.userData.isWall = true;
     scene.add(wall);
-    selectWall(wall);
+    selectWall(wall); // Use same transform logic as table
+    // Emit wall creation to server
+    if (typeof socket !== 'undefined') {
+        socket.emit('addWall', {
+            position: { x: wall.position.x, y: wall.position.y, z: wall.position.z },
+            rotation: { x: wall.rotation.x, y: wall.rotation.y, z: wall.rotation.z },
+            scale: { x: wall.scale.x, y: wall.scale.y, z: wall.scale.z },
+            color: 0xffffff // or any color logic you want
+        });
+    }
 }
+addWallBtn.onclick = createWall;
 
 function selectWall(wall) {
+    if (mode !== 'edit') return;
     if (selectedWall) {
-        selectedWall.material.emissive?.set(0x000000);
+        selectedWall.material?.emissive?.set(0x000000);
     }
     selectedWall = wall;
-    if (selectedWall && selectedWall.material.emissive) {
-        selectedWall.material.emissive.set(0x2222ff); // highlight selected
+    if (selectedWall.material?.emissive) {
+        selectedWall.material.emissive.set(0x2222ff);
     }
-    // Attach Unity-like gizmo
     transformControls.attach(wall);
     transformControls.visible = true;
 }
 
-document.getElementById('addWallBtn').addEventListener('click', createWall);
+// Update pointer events for edit mode
+function isMoveableObject(obj) {
+    return obj.userData.isWall || obj.userData.isTable;
+}
 
 document.addEventListener('pointerdown', (event) => {
-    // Raycast to select wall
+    if (mode !== 'edit') return;
     const mouse = new THREE.Vector2(
         (event.clientX / window.innerWidth) * 2 - 1,
         -(event.clientY / window.innerHeight) * 2 + 1
@@ -138,7 +201,7 @@ document.addEventListener('pointerdown', (event) => {
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(scene.children, false);
     for (let i = 0; i < intersects.length; i++) {
-        if (intersects[i].object.userData.isWall) {
+        if (isMoveableObject(intersects[i].object)) {
             selectWall(intersects[i].object);
             draggingWall = true;
             break;
@@ -151,14 +214,13 @@ document.addEventListener('pointerup', () => {
 });
 
 document.addEventListener('mousemove', (event) => {
-    if (!draggingWall || !selectedWall) return;
+    if (mode !== 'edit' || !draggingWall || !selectedWall) return;
     const mouse = new THREE.Vector2(
         (event.clientX / window.innerWidth) * 2 - 1,
         -(event.clientY / window.innerHeight) * 2 + 1
     );
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
-    // Intersect with floor
     const intersects = raycaster.intersectObject(floor);
     if (intersects.length > 0) {
         const pt = intersects[0].point;
@@ -167,35 +229,6 @@ document.addEventListener('mousemove', (event) => {
     }
 });
 
-// document.addEventListener('keydown', (event) => {
-//     if (!selectedWall) return;
-//     let moved = false;
-//     let gridSize = 1;
-//     switch(event.key) {
-//         case 'ArrowUp':
-//             selectedWall.position.z -= gridSize; moved = true; break;
-//         case 'ArrowDown':
-//             selectedWall.position.z += gridSize; moved = true; break;
-//         case 'ArrowLeft':
-//             selectedWall.position.x -= gridSize; moved = true; break;
-//         case 'ArrowRight':
-//             selectedWall.position.x += gridSize; moved = true; break;
-//         case 'r': // rotate 90 deg
-//             selectedWall.rotation.y += Math.PI/2; break;
-//         case 'R': // rotate -90 deg
-//             selectedWall.rotation.y -= Math.PI/2; break;
-//         case 't': // scale up
-//             selectedWall.scale.x += 0.1; selectedWall.scale.y += 0.1; break;
-//         case 'T': // scale down
-//             selectedWall.scale.x = Math.max(0.1, selectedWall.scale.x - 0.1);
-//             selectedWall.scale.y = Math.max(0.1, selectedWall.scale.y - 0.1); break;
-//     }
-//     if (moved) {
-//         selectedWall.position.x = snapToGrid(selectedWall.position.x, gridSize);
-//         selectedWall.position.z = snapToGrid(selectedWall.position.z, gridSize);
-//     }
-// });
-
 // === LOAD GLB PLAYER MODEL ===
 const loader = new GLTFLoader();
 
@@ -203,6 +236,7 @@ function createPlayerModel(userId, position, onLoaded) {
     loader.load('./model/male.glb', gltf => {
         const model = gltf.scene;
         model.name = userId;
+        model.isPlayerModel = true; // Mark as player model
         model.scale.set(0.01, 0.01, 0.01);
         model.position.set(position.x, 0, position.z);
         scene.add(model);
@@ -213,125 +247,175 @@ function createPlayerModel(userId, position, onLoaded) {
     });
 }
 
-// === SOCKET.IO CONNECTION ===
-const socket = io('http://localhost:3000');
-let currentUser = "";
+document.addEventListener('DOMContentLoaded', function() {
+    // === MAIN MENU LOGIN ===
+    let playerName = '';
+    let gameStarted = false;
 
-socket.on('connect', () => {
-    console.log('Connected to server as:', socket.id);
-});
+    function showMainMenu() {
+        document.getElementById('mainMenu').style.display = 'flex';
+    }
+    function hideMainMenu() {
+        document.getElementById('mainMenu').style.display = 'none';
+    }
 
-socket.on('userList', (userList) => {
-    scene.children.forEach(obj => {
-        if (!userList.some(user => obj.name === obj.name)) {
-            scene.remove(obj);
+    showMainMenu();
+
+    // Wait for user to enter name and click 'Enter Game'
+    document.getElementById('enterGameBtn').onclick = function() {
+        const input = document.getElementById('playerNameInput');
+        const name = input.value.trim();
+        if (!name) {
+            document.getElementById('loginError').textContent = 'Please enter your name.';
+            return;
         }
-    });
+        playerName = name;
+        hideMainMenu();
+        gameStarted = true;
+        // Now connect to socket and start game logic
+        startGame();
+    };
 
-    const ul = document.getElementById('users');
-    ul.innerHTML = '';
+    // --- Socket/game logic moved to a function ---
+    function startGame() {
+        // === SOCKET.IO CONNECTION ===
+        const socket = io('http://localhost:3000', { query: { name: playerName } });
+        let currentUser = "";
+        window._socket = socket; // for debugging
 
-    userList.forEach(user => {
-        const li = document.createElement('li');
-        li.textContent = "User " + user.index + (user.id === socket.id ? " (You)" : "");
-        ul.appendChild(li);
+        socket.on('connect', () => {
+            console.log('Connected to server as:', socket.id, 'with name', playerName);
+        });
 
-        const existing = scene.getObjectByName(user.id);
-        if (!existing) {
-            createPlayerModel(user.id, user.position, model => {
-                if (user.id === socket.id) {
-                    currentUser = "User " + user.index;
-
-                    const labelDiv = document.createElement('div');
-                    labelDiv.textContent = "You";
-                    labelDiv.style.color = 'white';
-
-                    const labelObj = new CSS2DObject(labelDiv);
-                    labelObj.position.set(0, -1.5, 0);
-                    labelObj.name = "label";
-                    model.add(labelObj);
+        socket.on('userList', (userList) => {
+            // Only remove player models, not static scene objects
+            scene.children
+                .filter(obj => obj.isPlayerModel)
+                .forEach(obj => {
+                    if (!userList.some(user => user.id === obj.name)) {
+                        scene.remove(obj);
+                    }
+                });
+            const ul = document.getElementById('users');
+            ul.innerHTML = '';
+            userList.forEach(user => {
+                const isCurrentUser = user.id === socket.id;
+                const displayName = isCurrentUser ? 'You' : (user.name || `User`);
+                const li = document.createElement('li');
+                li.textContent = displayName;
+                ul.appendChild(li);
+                const existing = scene.getObjectByName(user.id);
+                if (!existing) {
+                    createPlayerModel(user.id, user.position, model => {
+                        const labelDiv = document.createElement('div');
+                        labelDiv.textContent = displayName;
+                        labelDiv.style.color = 'white';
+                        const labelObj = new CSS2DObject(labelDiv);
+                        labelObj.position.set(0, -1.5, 0);
+                        labelObj.name = "label";
+                        model.add(labelObj);
+                    });
+                } else {
+                    existing.position.set(user.position.x, 0, user.position.z);
+                    // Update label if name changed
+                    const label = existing.getObjectByName('label');
+                    if (label && label.element.textContent !== displayName) {
+                        label.element.textContent = displayName;
+                    }
                 }
             });
-        } else {
-            existing.position.set(user.position.x, 0, user.position.z);
+        });
+
+        socket.on('userMoved', ({ id, position }) => {
+            const player = scene.getObjectByName(id);
+            if (player) {
+                player.position.set(position.x, 0, position.z);
+            }
+        });
+
+        socket.on('addWall', (wallData) => {
+            // Create the wall in the scene using the received data
+            const geometry = new THREE.BoxGeometry(2, 2, 0.2);
+            const material = new THREE.MeshStandardMaterial({ color: wallData.color || 0xffffff });
+            const wall = new THREE.Mesh(geometry, material);
+            wall.position.set(wallData.position.x, wallData.position.y, wallData.position.z);
+            wall.rotation.set(wallData.rotation.x, wallData.rotation.y, wallData.rotation.z);
+            wall.scale.set(wallData.scale.x, wallData.scale.y, wallData.scale.z);
+            wall.castShadow = true;
+            wall.userData.isWall = true;
+            scene.add(wall);
+        });
+
+        socket.on('addTable', (tableData) => {
+            const tableLoader = new GLTFLoader();
+            tableLoader.load('./model/table/table.glb', gltf => {
+                const table = gltf.scene;
+                table.position.set(tableData.position.x, tableData.position.y, tableData.position.z);
+                table.rotation.set(tableData.rotation.x, tableData.rotation.y, tableData.rotation.z);
+                table.scale.set(tableData.scale.x, tableData.scale.y, tableData.scale.z);
+                table.userData.isTable = true;
+                scene.add(table);
+            });
+        });
+
+        // === PLAYER MOVEMENT ===
+        function move() {
+            if (mode !== 'play') return;
+            const player = scene.getObjectByName(socket.id);
+            if (!player) return;
+            orbit.target.copy(player.position);
+            orbit.update();
+            velocity.set(0, 0, 0);
+            forward.set(0, 0, 0);
+            right.set(0, 0, 0);
+            camera.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+            right.copy(forward).cross(camera.up).normalize();
+            if (keys['w']) velocity.add(forward);
+            if (keys['s']) velocity.sub(forward);
+            if (keys['a']) velocity.sub(right);
+            if (keys['d']) velocity.add(right);
+            if (velocity.lengthSq() > 0) {
+                velocity.normalize().multiplyScalar(0.05);
+                player.position.add(velocity);
+                socket.emit('move', {
+                    id: socket.id,
+                    position: player.position
+                });
+            }
         }
-    });
-});
 
-socket.on('userMoved', ({ id, position }) => {
-    const player = scene.getObjectByName(id);
-    if (player) {
-        player.position.set(position.x, 0, position.z);
-    }
-});
+        // === ANIMATION LOOP ===
+        function animate() {
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+            if (gameStarted) move();
+        }
+        renderer.setAnimationLoop(animate);
 
-// === PLAYER MOVEMENT ===
-function move() {
-    const player = scene.getObjectByName(socket.id);
-    if (!player) return;
-
-    orbit.target.copy(player.position);
-    orbit.update();
-
-    velocity.set(0, 0, 0);
-    forward.set(0, 0, 0);
-    right.set(0, 0, 0);
-
-    camera.getWorldDirection(forward);
-    forward.y = 0;
-    forward.normalize();
-
-    right.copy(forward).cross(camera.up).normalize();
-
-    if (keys['w']) velocity.add(forward);
-    if (keys['s']) velocity.sub(forward);
-    if (keys['a']) velocity.sub(right);
-    if (keys['d']) velocity.add(right);
-
-    if (velocity.lengthSq() > 0) {
-        velocity.normalize().multiplyScalar(0.05);
-        player.position.add(velocity);
-
-        socket.emit('move', {
-            id: socket.id,
-            position: player.position
+        // === CHAT FUNCTIONALITY ===
+        window.sendMessage = function sendMessage() {
+            const input = document.getElementById('msg');
+            const msg = input.value;
+            if (!msg) {
+                document.getElementById('error').textContent = "Please enter your message";
+                return;
+            }
+            input.value = "";
+            document.getElementById('error').textContent = "";
+            socket.emit('message', {
+                text: msg,
+                sender: playerName
+            });
+            const li = document.createElement('li');
+            li.textContent = `You said: ${msg}`;
+            document.getElementById('messages').appendChild(li);
+        };
+        socket.on('message', (msg) => {
+            const li = document.createElement('li');
+            li.textContent = `${msg.sender} said: ${msg.text}`;
+            document.getElementById('messages').appendChild(li);
         });
     }
-}
-
-// === ANIMATION LOOP ===
-function animate() {
-    renderer.render(scene, camera);
-    labelRenderer.render(scene, camera);
-    move();
-}
-renderer.setAnimationLoop(animate);
-
-// === CHAT FUNCTIONALITY ===
-function sendMessage() {
-    const input = document.getElementById('msg');
-    const msg = input.value;
-    if (!msg) {
-        document.getElementById('error').textContent = "Please enter your message";
-        return;
-    }
-
-    input.value = "";
-    document.getElementById('error').textContent = "";
-
-    socket.emit('message', {
-        text: msg,
-        sender: currentUser
-    });
-
-    const li = document.createElement('li');
-    li.textContent = "You said: " + msg;
-    document.getElementById('messages').appendChild(li);
-}
-window.sendMessage = sendMessage;
-
-socket.on('message', (msg) => {
-    const li = document.createElement('li');
-    li.textContent = `${msg.sender} said: ${msg.text}`;
-    document.getElementById('messages').appendChild(li);
 });

@@ -5,8 +5,18 @@
     <script src="http://localhost:3000/socket.io/socket.io.js"></script>
 </head>
 <body>
+    <div id="mainMenu" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <h2 style="color:white;">Enter Your Name</h2>
+        <input id="playerNameInput" type="text" placeholder="Your name" style="font-size:1.2em;padding:0.5em;" />
+        <button id="enterGameBtn" style="font-size:1.2em;margin-top:1em;">Enter Game</button>
+        <p id="loginError" style="color:red;"></p>
+    </div>
     <h1>Socket.IO Client</h1>
-    <button id="addWallBtn">Add Wall</button>
+    <div id="modeBar">
+        <button id="toggleModeBtn">Switch to Edit Mode</button>
+        <button id="addWallBtn" style="display:none;">Add Wall</button>
+        <button id="addTableBtn" style="display:none;">Add Table</button>
+    </div>
     <input id="msg" type="text" placeholder="Message" />
     <button onclick="sendMessage()">Send</button>
     <button onclick="window.open(window.location.href, '_blank')">Open this in new tab</button>
