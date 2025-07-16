@@ -24,6 +24,48 @@
         <button id="addTableBtn" class="edit-btn" style="display:none;">Add Table</button>
         <!-- Add Chair and Delete buttons will be injected by JS with class="edit-btn" -->
     </div>
+    
+    <!-- Object List Panel -->
+    <div id="objectListPanel" class="object-list-panel" style="display:none;">
+        <h3>Objects</h3>
+        <div id="objectList" class="object-list">
+            <!-- Objects will be populated here -->
+        </div>
+    </div>
+    
+    <!-- Transform Controls Panel -->
+    <div id="transformPanel" class="transform-panel" style="display:none;">
+        <h3>Transform Controls</h3>
+        <div class="transform-group">
+            <label>Position:</label>
+            <div class="input-group">
+                <input type="number" id="posX" placeholder="X" step="0.1">
+                <input type="number" id="posY" placeholder="Y" step="0.1">
+                <input type="number" id="posZ" placeholder="Z" step="0.1">
+            </div>
+        </div>
+        <div class="transform-group">
+            <label>Rotation (degrees):</label>
+            <div class="input-group">
+                <input type="number" id="rotX" placeholder="X" step="1">
+                <input type="number" id="rotY" placeholder="Y" step="1">
+                <input type="number" id="rotZ" placeholder="Z" step="1">
+            </div>
+        </div>
+        <div class="transform-group">
+            <label>Scale:</label>
+            <div class="input-group">
+                <input type="number" id="scaleX" placeholder="X" step="0.1" min="0.1">
+                <input type="number" id="scaleY" placeholder="Y" step="0.1" min="0.1">
+                <input type="number" id="scaleZ" placeholder="Z" step="0.1" min="0.1">
+            </div>
+        </div>
+        <div class="button-group">
+            <button id="confirmTransform" class="confirm-btn">Confirm Changes</button>
+            <button id="resetTransform" class="reset-btn">Reset</button>
+        </div>
+    </div>
+    
     <input id="msg" type="text" placeholder="Message" />
     <button onclick="sendMessage()">Send</button>
     <button onclick="window.open(window.location.href, '_blank')">Open this in new tab</button>

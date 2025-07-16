@@ -26,4 +26,280 @@
 .edit-btn:hover, .edit-btn:focus {
   background: #1565c0;
   box-shadow: 0 2px 8px rgba(25, 118, 210, 0.18);
+}
+
+/* Special styling for different button types */
+#rotateBtn {
+  background: #ff9800;
+}
+#rotateBtn:hover, #rotateBtn:focus {
+  background: #f57c00;
+}
+
+#scaleBtn {
+  background: #4caf50;
+}
+#scaleBtn:hover, #scaleBtn:focus {
+  background: #388e3c;
+}
+
+#deleteBtn {
+  background: #f44336;
+}
+#deleteBtn:hover, #deleteBtn:focus {
+  background: #d32f2f;
+}
+
+/* Build mode indicator */
+.build-mode-active {
+  background: rgba(255, 193, 7, 0.1) !important;
+  border: 2px solid #ffc107;
+}
+
+/* Cursor styles for different modes */
+body.build-mode {
+  cursor: crosshair;
+}
+
+body.build-mode.dragging {
+  cursor: grabbing;
+}
+
+/* Chatbox positioning */
+#msg, button[onclick="sendMessage()"], #error, #messages {
+  position: fixed;
+  left: 10px;
+  z-index: 1000;
+}
+
+#msg {
+  bottom: 80px;
+  width: 200px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+button[onclick="sendMessage()"] {
+  bottom: 50px;
+  padding: 8px 16px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button[onclick="sendMessage()"]:hover {
+  background: #1565c0;
+}
+
+#error {
+  bottom: 120px;
+  color: red;
+  font-size: 0.9em;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+#messages {
+  bottom: 150px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  width: 250px;
+  font-size: 0.9em;
+}
+
+#messages li {
+  margin-bottom: 4px;
+  word-wrap: break-word;
+}
+
+/* Users list positioning */
+#users {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  z-index: 1000;
+  font-size: 0.9em;
+}
+
+#users li {
+  margin-bottom: 2px;
+}
+
+/* New tab button positioning */
+button[onclick="window.open(window.location.href, '_blank')"] {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  padding: 8px 16px;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 1000;
+}
+
+button[onclick="window.open(window.location.href, '_blank')"]:hover {
+  background: #45a049;
+}
+
+/* Object List Panel */
+.object-list-panel {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.9);
+  color: white;
+  padding: 1em;
+  border-radius: 8px;
+  font-size: 0.9em;
+  max-width: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.object-list-panel h3 {
+  margin: 0 0 0.5em 0;
+  color: #2196f3;
+}
+
+.object-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.object-item {
+  background: rgba(255,255,255,0.1);
+  padding: 0.5em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: 2px solid transparent;
+}
+
+.object-item:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.object-item.selected {
+  background: rgba(33, 150, 243, 0.3);
+  border-color: #2196f3;
+}
+
+.object-item .object-name {
+  font-weight: bold;
+  margin-bottom: 0.2em;
+}
+
+.object-item .object-info {
+  font-size: 0.8em;
+  opacity: 0.8;
+}
+
+/* Transform Panel */
+.transform-panel {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.9);
+  color: white;
+  padding: 1em;
+  border-radius: 8px;
+  font-size: 0.9em;
+  width: 300px;
+  z-index: 1000;
+}
+
+.transform-panel h3 {
+  margin: 0 0 0.5em 0;
+  color: #4caf50;
+}
+
+.transform-group {
+  margin-bottom: 1em;
+}
+
+.transform-group label {
+  display: block;
+  margin-bottom: 0.3em;
+  font-weight: bold;
+  color: #ccc;
+}
+
+.input-group {
+  display: flex;
+  gap: 0.3em;
+}
+
+.input-group input {
+  flex: 1;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  padding: 0.3em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: #4caf50;
+  background: rgba(255,255,255,0.15);
+}
+
+.input-group input::placeholder {
+  color: rgba(255,255,255,0.5);
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5em;
+  margin-top: 1em;
+}
+
+.confirm-btn {
+  background: #4caf50;
+  color: white;
+  border: none;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  flex: 1;
+  transition: background 0.2s;
+}
+
+.confirm-btn:hover {
+  background: #45a049;
+}
+
+.reset-btn {
+  background: #f44336;
+  color: white;
+  border: none;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  flex: 1;
+  transition: background 0.2s;
+}
+
+.reset-btn:hover {
+  background: #da190b;
 } 
