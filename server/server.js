@@ -50,13 +50,33 @@ function create5x5Wall() {
     }
 }
 
-// Function to get random spawn position
-function getRandomSpawnPosition() {
-    // Spawn players in a larger area to avoid conflicts
+// Function to get random spawn position, avoiding overlap with existing users
+function getRandomSpawnPosition(existingUsers) {
     const minX = -20;
     const maxX = 20;
     const minZ = -20;
     const maxZ = 20;
+    const minDistance = 3; // Minimum distance between spawns
+    let attempt = 0;
+    while (attempt < 20) {
+        const pos = {
+            x: Math.random() * (maxX - minX) + minX,
+            y: 0,
+            z: Math.random() * (maxZ - minZ) + minZ
+        };
+        let tooClose = false;
+        for (const user of Object.values(existingUsers)) {
+            const dx = user.position.x - pos.x;
+            const dz = user.position.z - pos.z;
+            if (Math.sqrt(dx*dx + dz*dz) < minDistance) {
+                tooClose = true;
+                break;
+            }
+        }
+        if (!tooClose) return pos;
+        attempt++;
+    }
+    // If we can't find a free spot, just return the last one
     return {
         x: Math.random() * (maxX - minX) + minX,
         y: 0,
@@ -77,7 +97,7 @@ io.on('connection', socket => {
     users[socket.id] = { 
         id: socket.id,
         name: name,
-        position: getRandomSpawnPosition(),
+        position: getRandomSpawnPosition(users),
         color: color_number
     };
 

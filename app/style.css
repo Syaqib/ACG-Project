@@ -239,7 +239,7 @@ body.build-mode.dragging {
 /* New tab button positioning */
 button[onclick="window.open(window.location.href, '_blank')"] {
   position: fixed;
-  top: 20px;
+  top: 20 px;
   right: 15px;
   padding: 8px 16px;
   background: #1976d2;

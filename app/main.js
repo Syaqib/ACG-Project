@@ -73,6 +73,29 @@ directionalLight.target.position.set(0, 0, 0);
 scene.add(directionalLight);
 scene.add(directionalLight.target);
 
+// === LIGHTING GUI CONTROLS ===
+if (window.dat && window.dat.GUI) {
+    const gui = new dat.GUI();
+    const ambientFolder = gui.addFolder('Ambient Light');
+    ambientFolder.add(ambientLight, 'intensity', 0, 2, 0.01).name('Intensity');
+    ambientFolder.addColor({ color: ambientLight.color.getHex() }, 'color').name('Color').onChange(v => ambientLight.color.set(v));
+    ambientFolder.open();
+
+    const hemiFolder = gui.addFolder('Hemisphere Light');
+    hemiFolder.add(hemiLight, 'intensity', 0, 2, 0.01).name('Intensity');
+    hemiFolder.addColor({ color: hemiLight.color.getHex() }, 'color').name('Sky Color').onChange(v => hemiLight.color.set(v));
+    hemiFolder.addColor({ color: hemiLight.groundColor.getHex() }, 'color').name('Ground Color').onChange(v => hemiLight.groundColor.set(v));
+    hemiFolder.open();
+
+    const dirFolder = gui.addFolder('Directional Light');
+    dirFolder.add(directionalLight, 'intensity', 0, 3, 0.01).name('Intensity');
+    dirFolder.addColor({ color: directionalLight.color.getHex() }, 'color').name('Color').onChange(v => directionalLight.color.set(v));
+    dirFolder.add(directionalLight.position, 'x', -50, 50, 0.1).name('Pos X');
+    dirFolder.add(directionalLight.position, 'y', 0, 50, 0.1).name('Pos Y');
+    dirFolder.add(directionalLight.position, 'z', -50, 50, 0.1).name('Pos Z');
+    dirFolder.open();
+}
+
 // === FLOOR WITH GRID ===
 const floorGeometry = new THREE.PlaneGeometry(300, 300); // much larger floor
 const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xe0d7c6 }); // warm, house-like color
@@ -522,6 +545,13 @@ function setMode(newMode) {
         
         // Update object list
         updateObjectList();
+        // Restore default mouse mapping for edit mode (LMB = rotate)
+        orbit.mouseButtons = {
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN
+        };
+        orbit.update();
     } else {
         toggleModeBtn.textContent = 'Switch to Edit Mode';
         addWallBtn.style.display = 'none';
@@ -557,6 +587,13 @@ function setMode(newMode) {
             scene.remove(dragPreview);
             dragPreview = null;
         }
+        // In play mode, set LMB to pan (drag camera)
+        orbit.mouseButtons = {
+            LEFT: THREE.MOUSE.PAN,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.ROTATE
+        };
+        orbit.update();
     }
 }
 
