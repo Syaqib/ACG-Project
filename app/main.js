@@ -421,17 +421,18 @@ function createWallOutline(wall) {
 // Unified object creation - only for walls and tables (chairs handled by server)
 function createObject({ type, modelPath, userDataKey, emitEvent, defaultProps = {} }) {
     if (type === 'wall') {
-        const wallWidth = 2;
-        const wallHeight = 2;
-        const wallDepth = 0.2;
+        const wallWidth = 2.2;
+        const wallHeight = 2.2;
+        const wallDepth = 0.3;
         const geometry = new THREE.BoxGeometry(wallWidth, wallHeight, wallDepth);
         const material = new THREE.MeshStandardMaterial({ color: defaultProps.color || 0xffffff });
         const wall = new THREE.Mesh(geometry, material);
-        wall.position.set(0, 1, 0);
+        wall.position.set(0, wallHeight / 2, 0);
         wall.castShadow = true;
         wall.userData[userDataKey] = true;
         wall.userData.size = [wallWidth, wallHeight]; // Grid size
         wall.userData.gridPosition = vector3ToGrid(wall.position);
+        wall.scale.set(2, 2, 0.3); // Ensure scale is 1,1,1 for transform controls
 
         // Add selection outline for walls
         createWallOutline(wall);
@@ -449,7 +450,8 @@ function createObject({ type, modelPath, userDataKey, emitEvent, defaultProps = 
             socket.emit(emitEvent, {
                 position: { x: wall.position.x, y: wall.position.y, z: wall.position.z },
                 rotation: { x: wall.rotation.x, y: wall.rotation.y, z: wall.rotation.z },
-                scale: { x: wallWidth, y: wallHeight, z: wallDepth },
+                scale: { x: wall.scale.x, y: wall.scale.y, z: wall.scale.z },
+                geometry: { width: wallWidth, height: wallHeight, depth: wallDepth },
                 color: wall.material.color.getHex()
             });
         }
@@ -1092,12 +1094,11 @@ function updateTransformInputs() {
     if (rotY) rotY.value = (guiSelectedObject.rotation.y * 180 / Math.PI).toFixed(1);
     if (rotZ) rotZ.value = (guiSelectedObject.rotation.z * 180 / Math.PI).toFixed(1);
     if (scaleX && scaleY && scaleZ) {
-        if (guiSelectedObject.userData && guiSelectedObject.userData.isWall &&
-            guiSelectedObject.geometry && guiSelectedObject.geometry.parameters) {
-            // Set to initial wall geometry size
-            scaleX.value = guiSelectedObject.geometry.parameters.width?.toFixed(2) || '2.2';
-            scaleY.value = guiSelectedObject.geometry.parameters.height?.toFixed(2) || '2.2';
-            scaleZ.value = guiSelectedObject.geometry.parameters.depth?.toFixed(2) || '0.3';
+        if (guiSelectedObject.userData && guiSelectedObject.userData.isWall) {
+            // For walls, initial scale is always 1,1,1 (geometry encodes true size)
+            scaleX.value = '2.00';
+            scaleY.value = '2.00';
+            scaleZ.value = '0.30';
         } else {
             scaleX.value = guiSelectedObject.scale.x.toFixed(2);
             scaleY.value = guiSelectedObject.scale.y.toFixed(2);
