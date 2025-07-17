@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+// Remove: import dat from 'dat.gui';
 
 // === RENDERER ===
 const renderer = new THREE.WebGLRenderer();
@@ -74,26 +75,33 @@ scene.add(directionalLight);
 scene.add(directionalLight.target);
 
 // === LIGHTING GUI CONTROLS ===
-if (window.dat && window.dat.GUI) {
-    const gui = new dat.GUI();
-    const ambientFolder = gui.addFolder('Ambient Light');
-    ambientFolder.add(ambientLight, 'intensity', 0, 2, 0.01).name('Intensity');
-    ambientFolder.addColor({ color: ambientLight.color.getHex() }, 'color').name('Color').onChange(v => ambientLight.color.set(v));
-    ambientFolder.open();
+const gui = new window.dat.GUI();
+const ambientFolder = gui.addFolder('Ambient Light');
+ambientFolder.add(ambientLight, 'intensity', 0, 2, 0.01).name('Intensity');
+ambientFolder.addColor({ color: ambientLight.color.getHex() }, 'color').name('Color').onChange(v => ambientLight.color.set(v));
+ambientFolder.open();
 
-    const hemiFolder = gui.addFolder('Hemisphere Light');
-    hemiFolder.add(hemiLight, 'intensity', 0, 2, 0.01).name('Intensity');
-    hemiFolder.addColor({ color: hemiLight.color.getHex() }, 'color').name('Sky Color').onChange(v => hemiLight.color.set(v));
-    hemiFolder.addColor({ color: hemiLight.groundColor.getHex() }, 'color').name('Ground Color').onChange(v => hemiLight.groundColor.set(v));
-    hemiFolder.open();
+const hemiFolder = gui.addFolder('Hemisphere Light');
+hemiFolder.add(hemiLight, 'intensity', 0, 2, 0.01).name('Intensity');
+hemiFolder.addColor({ color: hemiLight.color.getHex() }, 'color').name('Sky Color').onChange(v => hemiLight.color.set(v));
+hemiFolder.addColor({ color: hemiLight.groundColor.getHex() }, 'color').name('Ground Color').onChange(v => hemiLight.groundColor.set(v));
+hemiFolder.open();
 
-    const dirFolder = gui.addFolder('Directional Light');
-    dirFolder.add(directionalLight, 'intensity', 0, 3, 0.01).name('Intensity');
-    dirFolder.addColor({ color: directionalLight.color.getHex() }, 'color').name('Color').onChange(v => directionalLight.color.set(v));
-    dirFolder.add(directionalLight.position, 'x', -50, 50, 0.1).name('Pos X');
-    dirFolder.add(directionalLight.position, 'y', 0, 50, 0.1).name('Pos Y');
-    dirFolder.add(directionalLight.position, 'z', -50, 50, 0.1).name('Pos Z');
-    dirFolder.open();
+const dirFolder = gui.addFolder('Directional Light');
+dirFolder.add(directionalLight, 'intensity', 0, 3, 0.01).name('Intensity');
+dirFolder.addColor({ color: directionalLight.color.getHex() }, 'color').name('Color').onChange(v => directionalLight.color.set(v));
+dirFolder.add(directionalLight.position, 'x', -50, 50, 0.1).name('Pos X');
+dirFolder.add(directionalLight.position, 'y', 0, 50, 0.1).name('Pos Y');
+dirFolder.add(directionalLight.position, 'z', -50, 50, 0.1).name('Pos Z');
+dirFolder.open();
+
+// After dat.GUI is created (usually: const gui = new dat.GUI();)
+if (gui && gui.domElement) {
+    // Position GUI next to chat panel
+    gui.domElement.style.position = 'absolute';
+    gui.domElement.style.top = '60px'; // align with chat panel
+    gui.domElement.style.right = '340px'; // place to the left of chat panel (adjust as needed)
+    gui.domElement.style.zIndex = '1200';
 }
 
 // === FLOOR WITH GRID ===
