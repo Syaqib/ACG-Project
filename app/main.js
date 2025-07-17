@@ -4,6 +4,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 // Remove: import dat from 'dat.gui';
+import { initializeChat } from './chat.js';
 
 // === RENDERER ===
 const renderer = new THREE.WebGLRenderer();
@@ -97,10 +98,11 @@ dirFolder.open();
 
 // After dat.GUI is created (usually: const gui = new dat.GUI();)
 if (gui && gui.domElement) {
-    // Position GUI next to chat panel
+    // Position GUI below user list, left side
     gui.domElement.style.position = 'absolute';
-    gui.domElement.style.top = '80px'; // align with chat panel
-    gui.domElement.style.right = '1600px'; // place to the left of chat panel (adjust as needed)
+    gui.domElement.style.top = '300px'; // below user list
+    gui.domElement.style.left = '10px'; // left side
+    gui.domElement.style.right = '';
     gui.domElement.style.zIndex = '1200';
 }
 if (gui && gui.closed === false && typeof gui.close === 'function') {
@@ -311,6 +313,13 @@ let dragPreview = null; // Visual preview of dragged item
 let guiSelectedObject = null; // Object selected via GUI
 let originalTransform = null; // Store original transform for reset
 
+// Add a new state for direct drag mode
+let directDragObject = null;
+let directDragActive = false;
+
+// Add a new state to track if object list selection is active
+let objectListSelectionActive = false;
+
 // === MOVEMENT CONTROL ===
 const keys = {};
 let selectedWall = null;
@@ -377,35 +386,6 @@ function vector3ToGrid(vector3) {
 
 function gridToVector3(gridPos) {
     return new THREE.Vector3(gridPos[0], 1, gridPos[1]);
-}
-
-// Collision detection
-function checkCollision(item, position, rotation, items) {
-    const width = rotation === 1 || rotation === 3 ? item.size[1] : item.size[0];
-    const height = rotation === 1 || rotation === 3 ? item.size[0] : item.size[1];
-    
-    // Check bounds
-    if (position[0] < -50 || position[0] + width > 50 || 
-        position[1] < -50 || position[1] + height > 50) {
-        return true;
-    }
-    
-    // Check collision with other items
-    for (let otherItem of items) {
-        if (otherItem === item) continue;
-        
-        const otherWidth = otherItem.rotation === 1 || otherItem.rotation === 3 ? otherItem.size[1] : otherItem.size[0];
-        const otherHeight = otherItem.rotation === 1 || otherItem.rotation === 3 ? otherItem.size[0] : otherItem.size[1];
-        
-        if (position[0] < otherItem.gridPosition[0] + otherWidth &&
-            position[0] + width > otherItem.gridPosition[0] &&
-            position[1] < otherItem.gridPosition[1] + otherHeight &&
-            position[1] + height > otherItem.gridPosition[1]) {
-            return true;
-        }
-    }
-    
-    return false;
 }
 
 // Create invisible selection box for better object selection
@@ -722,20 +702,18 @@ document.addEventListener('pointerdown', (event) => {
         const gridPos = vector3ToGrid(point);
         
         if (draggedItem !== null) {
-            if (canDrop) {
-                // Place the dragged item
-                const item = selectableObjects[draggedItem];
-                if (item) {
-                    const newPos = gridToVector3(gridPos);
-                    item.position.copy(newPos);
-                    item.userData.gridPosition = gridPos;
-                    item.rotation.y = draggedItemRotation * Math.PI / 2;
-                    
-                    // Update server
-                    if (item.userData.isWall) emitWallUpdate(item);
-                    if (item.userData.isTable) emitTableUpdate(item);
-                    if (item.userData.isChair) emitChairUpdate(item);
-                }
+            // Place the dragged item (no collision check)
+            const item = selectableObjects[draggedItem];
+            if (item) {
+                const newPos = gridToVector3(gridPos);
+                item.position.copy(newPos);
+                item.userData.gridPosition = gridPos;
+                item.rotation.y = draggedItemRotation * Math.PI / 2;
+                // Do NOT reset or change scale here
+                // Update server immediately after drag
+                if (item.userData.isWall) emitWallUpdate(item);
+                if (item.userData.isTable) emitTableUpdate(item);
+                if (item.userData.isChair) emitChairUpdate(item);
             }
             draggedItem = null;
             dragPosition = null;
@@ -842,13 +820,10 @@ document.addEventListener('mousemove', (event) => {
             const newGridPos = vector3ToGrid(point);
             if (!dragPosition || newGridPos[0] !== dragPosition[0] || newGridPos[1] !== dragPosition[1]) {
                 dragPosition = newGridPos;
-                // Update collision check
+                // Update drag preview (no collision check)
                 const item = selectableObjects[draggedItem];
                 if (item) {
-                    canDrop = !checkCollision(item, dragPosition, draggedItemRotation, selectableObjects);
-                    
-                    // Update drag preview
-                    updateDragPreview(item, dragPosition, draggedItemRotation, canDrop);
+                    updateDragPreview(item, dragPosition, draggedItemRotation, true);
                 }
             }
         }
@@ -1061,23 +1036,38 @@ function updateObjectList() {
 
 // Select object from GUI
 function selectObjectFromGUI(obj) {
+    // Cancel previous direct drag
+    if (directDragObject && directDragObject !== obj) {
+        // Remove green highlight
+        directDragObject.children.forEach(child => {
+            if (child.userData.isSelectionBox) {
+                child.material.opacity = 0;
+            }
+        });
+    }
     guiSelectedObject = obj;
     originalTransform = {
         position: obj.position.clone(),
         rotation: obj.rotation.clone(),
         scale: obj.scale.clone()
     };
-    
-    // Update transform controls
+    // Attach transform controls/arrow axis
+    transformControls.attach(obj);
+    transformControls.visible = true;
+    // Highlight green
+    obj.children.forEach(child => {
+        if (child.userData.isSelectionBox) {
+            child.material.opacity = 0.3;
+            child.material.color.setHex(HIGHLIGHT_COLOR);
+        }
+    });
+    // Disable direct drag mode and set object list selection active
+    directDragObject = null;
+    directDragActive = false;
+    objectListSelectionActive = true;
+    // Update transform panel and object list
     updateTransformInputs();
-    
-    // Update visual selection
-    selectWall(obj);
-    
-    // Update object list highlighting
     updateObjectList();
-    
-    // Show transform panel
     document.getElementById('transformPanel').style.display = 'block';
 }
 
@@ -1158,7 +1148,7 @@ function confirmTransformChanges() {
     // Apply current GUI values
     applyTransformFromGUI();
     
-    // Sync to server
+    // Sync to server only after confirmation
     if (guiSelectedObject.userData.isWall) {
         emitWallUpdate(guiSelectedObject);
     } else if (guiSelectedObject.userData.isTable) {
@@ -1177,6 +1167,21 @@ function confirmTransformChanges() {
     // Update object list
     updateObjectList();
     
+    // End object list selection mode after confirmation
+    if (objectListSelectionActive) {
+        objectListSelectionActive = false;
+        if (guiSelectedObject) {
+            guiSelectedObject.children.forEach(child => {
+                if (child.userData.isSelectionBox) {
+                    child.material.opacity = 0;
+                }
+            });
+        }
+        guiSelectedObject = null;
+        transformControls.detach();
+        transformControls.visible = false;
+        document.getElementById('transformPanel').style.display = 'none';
+    }
     console.log('Transform changes confirmed and synced to server');
 }
 
@@ -1499,29 +1504,7 @@ document.addEventListener('DOMContentLoaded', function() {
         renderer.setAnimationLoop(animate);
 
         // === CHAT FUNCTIONALITY ===
-        window.sendMessage = function sendMessage() {
-            const input = document.getElementById('msg');
-            const msg = input.value;
-            if (!msg) {
-        document.getElementById('error').textContent = "Please enter your message";
-                return;
-    }
-            input.value = "";
-    document.getElementById('error').textContent = "";
-    socket.emit('message', {
-        text: msg,
-                sender: playerName
-    });
-    const li = document.createElement('li');
-            li.textContent = `You said: ${msg}`;
-    document.getElementById('messages').appendChild(li);
-        };
-
-socket.on('message', (msg) => {
-    const li = document.createElement('li');
-            li.textContent = `${msg.sender} said: ${msg.text}`;
-    document.getElementById('messages').appendChild(li);
-        });
+        initializeChat(socket, playerName);
     }
 });
 
