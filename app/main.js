@@ -866,15 +866,15 @@ function createPlayerModel(userId, position, onLoaded) {
 let socket; // Global socket variable
 
 // Helper to play animation for a player
-function setPlayerAnimation(userId, moving) {
+function setPlayerAnimation(userId, animation) {
     const actions = playerActions[userId];
     if (!actions) return;
-    if (moving && !actions.isWalking) {
+    if (animation === 'walk' && !actions.isWalking) {
         if (actions.current) actions.current.fadeOut(0.2);
         actions.walk.reset().fadeIn(0.2).play();
         actions.current = actions.walk;
         actions.isWalking = true;
-    } else if (!moving && actions.isWalking) {
+    } else if (animation === 'idle' && actions.isWalking) {
         if (actions.current) actions.current.fadeOut(0.2);
         actions.idle.reset().fadeIn(0.2).play();
         actions.current = actions.idle;
@@ -1170,6 +1170,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 .filter(obj => obj.isPlayerModel)
                 .forEach(obj => {
                     if (!userList.some(user => user.id === obj.name)) {
+                        // Remove name label if present
+                        const label = obj.getObjectByName('label');
+                        if (label) obj.remove(label);
                         scene.remove(obj);
                     }
                 });
@@ -1205,11 +1208,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-        socket.on('userMoved', ({ id, position, moving }) => {
+        socket.on('userMoved', ({ id, position, rotation, animation }) => {
             const player = scene.getObjectByName(id);
             if (player) {
                 player.position.set(position.x, 0, position.z);
-                setPlayerAnimation(id, moving);
+                player.rotation.y = rotation; // Apply rotation
+                setPlayerAnimation(id, animation); // Use animation string
             }
         });
 
@@ -1350,7 +1354,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 socket.emit('move', {
                     id: socket.id,
                     position: player.position,
-                    moving: moving
+                    rotation: player.rotation.y,
+                    animation: 'walk',
+                    moving: true
+                });
+            } else {
+                // Emit idle state if not moving
+                socket.emit('move', {
+                    id: socket.id,
+                    position: player.position,
+                    rotation: player.rotation.y,
+                    animation: 'idle',
+                    moving: false
                 });
             }
 
@@ -1360,7 +1375,7 @@ document.addEventListener('DOMContentLoaded', function() {
             camera.lookAt(player.position);
             
             // Animation switching for local player
-            setPlayerAnimation(socket.id, moving);
+            setPlayerAnimation(socket.id, moving ? 'walk' : 'idle');
         }
 
         // === ANIMATION LOOP ===
@@ -1393,7 +1408,7 @@ document.addEventListener('DOMContentLoaded', function() {
             li.textContent = `You said: ${msg}`;
     document.getElementById('messages').appendChild(li);
         };
-        
+
 socket.on('message', (msg) => {
     const li = document.createElement('li');
             li.textContent = `${msg.sender} said: ${msg.text}`;

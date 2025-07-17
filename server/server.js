@@ -159,8 +159,16 @@ io.on('connection', socket => {
     socket.on('move', (data) => {
         if (users[data.id]) {
             users[data.id].position = data.position;
-            // Broadcast with name
-            socket.broadcast.emit('userMoved', { id: data.id, position: data.position, name: users[data.id].name });
+            users[data.id].rotation = data.rotation;
+            users[data.id].animation = data.animation;
+            // Broadcast with name, rotation, and animation
+            socket.broadcast.emit('userMoved', {
+                id: data.id,
+                position: data.position,
+                rotation: data.rotation,
+                animation: data.animation,
+                name: users[data.id].name
+            });
         }
     });
 
