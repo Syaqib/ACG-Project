@@ -99,24 +99,76 @@ dirFolder.open();
 if (gui && gui.domElement) {
     // Position GUI next to chat panel
     gui.domElement.style.position = 'absolute';
-    gui.domElement.style.top = '60px'; // align with chat panel
-    gui.domElement.style.right = '340px'; // place to the left of chat panel (adjust as needed)
+    gui.domElement.style.top = '80px'; // align with chat panel
+    gui.domElement.style.right = '1600px'; // place to the left of chat panel (adjust as needed)
     gui.domElement.style.zIndex = '1200';
 }
+if (gui && gui.closed === false && typeof gui.close === 'function') {
+    gui.close();
+}
+// === TEXTURE LOADER & TEXTURE CYCLING ===
+const textureLoader = new THREE.TextureLoader();
+const textureFiles = ['model/floor.jpg', 'model/rug.jpg', 'model/rug1.png', 'model/tiles.png'];
+let floorTextureIndex = 0;
+let wallTextureIndex = 0;
 
-// === FLOOR WITH GRID ===
-const floorGeometry = new THREE.PlaneGeometry(300, 300); // much larger floor
-const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xe0d7c6 }); // warm, house-like color
+function loadTexture(path, repeatX = 1, repeatY = 1) {
+    const tex = textureLoader.load(path);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repeatX, repeatY);
+    return tex;
+}
+
+// Initial textures
+let floorTexture = loadTexture(textureFiles[floorTextureIndex], 10, 10);
+let wallTexture = loadTexture(textureFiles[wallTextureIndex], 1, 1);
+
+// === FLOOR WITH TEXTURE ===
+const floorGeometry = new THREE.PlaneGeometry(100, 100);
+let floorMaterial = new THREE.MeshStandardMaterial({
+    map: floorTexture,
+    side: THREE.DoubleSide
+});
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = 0;
 floor.receiveShadow = true;
 scene.add(floor);
 
-const grid = new THREE.GridHelper(300, 100, 'lightgray', 'black');
-grid.position.y = 0.01; // Slightly above the floor to avoid z-fighting
+const grid = new THREE.GridHelper(100, 100, 'lightgray', 'black');
+grid.position.y = 0.01;
 scene.add(grid);
-grid.visible = false; // Only show in edit mode
+grid.visible = false;
+
+// === WALL TEXTURE UPDATE FUNCTION ===
+function updateWallTextures() {
+    scene.children.forEach(obj => {
+        if (obj.userData && obj.userData.isWall) {
+            // Clone the wall texture for each wall
+            const tex = loadTexture(textureFiles[wallTextureIndex], 1, 1);
+            obj.material.map = tex;
+            obj.material.needsUpdate = true;
+        }
+    });
+}
+
+// === FLOOR TEXTURE UPDATE FUNCTION ===
+function updateFloorTexture() {
+    floorTexture = loadTexture(textureFiles[floorTextureIndex], 10, 10);
+    floorMaterial.map = floorTexture;
+    floorMaterial.needsUpdate = true;
+}
+
+// === BUTTON EVENT LISTENERS ===
+document.getElementById('floorTextureBtn').onclick = function() {
+    floorTextureIndex = (floorTextureIndex + 1) % textureFiles.length;
+    updateFloorTexture();
+};
+document.getElementById('wallTextureBtn').onclick = function() {
+    wallTextureIndex = (wallTextureIndex + 1) % textureFiles.length;
+    updateWallTextures();
+};
 
 // === ORBIT CONTROLS ===
 const orbit = new OrbitControls(camera, renderer.domElement);
@@ -389,32 +441,35 @@ function createWallOutline(wall) {
 // Unified object creation - only for walls and tables (chairs handled by server)
 function createObject({ type, modelPath, userDataKey, emitEvent, defaultProps = {} }) {
     if (type === 'wall') {
-    const geometry = new THREE.BoxGeometry(2, 2, 0.2);
+        const wallWidth = 2;
+        const wallHeight = 2;
+        const wallDepth = 0.2;
+        const geometry = new THREE.BoxGeometry(wallWidth, wallHeight, wallDepth);
         const material = new THREE.MeshStandardMaterial({ color: defaultProps.color || 0xffffff });
-    const wall = new THREE.Mesh(geometry, material);
-    wall.position.set(0, 1, 0);
-    wall.castShadow = true;
+        const wall = new THREE.Mesh(geometry, material);
+        wall.position.set(0, 1, 0);
+        wall.castShadow = true;
         wall.userData[userDataKey] = true;
-        wall.userData.size = [2, 2]; // Grid size
+        wall.userData.size = [wallWidth, wallHeight]; // Grid size
         wall.userData.gridPosition = vector3ToGrid(wall.position);
-        
+
         // Add selection outline for walls
         createWallOutline(wall);
-        
-    scene.add(wall);
+
+        scene.add(wall);
         selectableObjects.push(wall);
-    selectWall(wall);
-        
+        selectWall(wall);
+
         // Update GUI
         if (buildMode) {
             updateObjectList();
         }
-        
+
         if (socket) {
             socket.emit(emitEvent, {
-            position: { x: wall.position.x, y: wall.position.y, z: wall.position.z },
-            rotation: { x: wall.rotation.x, y: wall.rotation.y, z: wall.rotation.z },
-            scale: { x: wall.scale.x, y: wall.scale.y, z: wall.scale.z },
+                position: { x: wall.position.x, y: wall.position.y, z: wall.position.z },
+                rotation: { x: wall.rotation.x, y: wall.rotation.y, z: wall.rotation.z },
+                scale: { x: wallWidth, y: wallHeight, z: wallDepth },
                 color: wall.material.color.getHex()
             });
         }
@@ -1029,7 +1084,7 @@ function selectObjectFromGUI(obj) {
 // Update transform input fields
 function updateTransformInputs() {
     if (!guiSelectedObject) return;
-    
+
     const posX = document.getElementById('posX');
     const posY = document.getElementById('posY');
     const posZ = document.getElementById('posZ');
@@ -1039,16 +1094,26 @@ function updateTransformInputs() {
     const scaleX = document.getElementById('scaleX');
     const scaleY = document.getElementById('scaleY');
     const scaleZ = document.getElementById('scaleZ');
-    
+
     if (posX) posX.value = guiSelectedObject.position.x.toFixed(2);
     if (posY) posY.value = guiSelectedObject.position.y.toFixed(2);
     if (posZ) posZ.value = guiSelectedObject.position.z.toFixed(2);
     if (rotX) rotX.value = (guiSelectedObject.rotation.x * 180 / Math.PI).toFixed(1);
     if (rotY) rotY.value = (guiSelectedObject.rotation.y * 180 / Math.PI).toFixed(1);
     if (rotZ) rotZ.value = (guiSelectedObject.rotation.z * 180 / Math.PI).toFixed(1);
-    if (scaleX) scaleX.value = guiSelectedObject.scale.x.toFixed(2);
-    if (scaleY) scaleY.value = guiSelectedObject.scale.y.toFixed(2);
-    if (scaleZ) scaleZ.value = guiSelectedObject.scale.z.toFixed(2);
+    if (scaleX && scaleY && scaleZ) {
+        if (guiSelectedObject.userData && guiSelectedObject.userData.isWall &&
+            guiSelectedObject.geometry && guiSelectedObject.geometry.parameters) {
+            // Set to initial wall geometry size
+            scaleX.value = guiSelectedObject.geometry.parameters.width?.toFixed(2) || '2.2';
+            scaleY.value = guiSelectedObject.geometry.parameters.height?.toFixed(2) || '2.2';
+            scaleZ.value = guiSelectedObject.geometry.parameters.depth?.toFixed(2) || '0.3';
+        } else {
+            scaleX.value = guiSelectedObject.scale.x.toFixed(2);
+            scaleY.value = guiSelectedObject.scale.y.toFixed(2);
+            scaleZ.value = guiSelectedObject.scale.z.toFixed(2);
+        }
+    }
 }
 
 // Apply transform from GUI inputs
@@ -1221,14 +1286,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         scene.remove(obj);
                     }
                 });
-            const ul = document.getElementById('users');
-            ul.innerHTML = '';
+    const ul = document.getElementById('users');
+    ul.innerHTML = '';
             userList.forEach(user => {
                 const isCurrentUser = user.id === socket.id;
                 const displayName = isCurrentUser ? 'You' : (user.name || `User`);
-                const li = document.createElement('li');
+        const li = document.createElement('li');
                 li.textContent = displayName;
-                ul.appendChild(li);
+        ul.appendChild(li);
                 const existing = scene.getObjectByName(user.id);
                 if (!existing) {
                     createPlayerModel(user.id, user.position, model => {
@@ -1275,21 +1340,19 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add all walls from server
             wallList.forEach(wallData => {
                 console.log('Wall from server:', wallData);
-                const geometry = new THREE.BoxGeometry(2, 2, 0.2);
-                const material = new THREE.MeshStandardMaterial({ color: wallData.color || 0xffffff });
+                const geometry = new THREE.BoxGeometry(wallData.scale.x, wallData.scale.y, wallData.scale.z);
+                // Clone the current wall texture for each wall
+                const tex = loadTexture(textureFiles[wallTextureIndex], 1, 1);
+                const material = new THREE.MeshStandardMaterial({ map: tex });
                 const wall = new THREE.Mesh(geometry, material);
                 wall.position.set(wallData.position.x, wallData.position.y, wallData.position.z);
                 wall.rotation.set(wallData.rotation.x, wallData.rotation.y, wallData.rotation.z);
-                wall.scale.set(wallData.scale.x, wallData.scale.y, wallData.scale.z);
                 wall.castShadow = true;
                 wall.userData.isWall = true;
                 wall.userData.wallId = wallData.id;
-                wall.userData.size = [2, 2];
+                wall.userData.size = [wallData.scale.x, wallData.scale.z];
                 wall.userData.gridPosition = vector3ToGrid(wall.position);
-                
-                // Add selection outline for walls
                 createWallOutline(wall);
-                
                 scene.add(wall);
                 selectableObjects.push(wall);
             });

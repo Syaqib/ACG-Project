@@ -24,32 +24,6 @@ function generateChairId() {
     return 'chair_' + Math.random().toString(36).substr(2, 9);
 }
 
-// Function to create a 5x5 wall
-function create5x5Wall() {
-    if (walls.length > 0) return; // Only create once
-    const wallId = generateWallId();
-    const wallSize = 2; // Size of each wall segment
-    const wallHeight = 2;
-    const wallThickness = 0.2;
-    // Center the grid at (0,0)
-    for (let x = 0; x < 5; x++) {
-        for (let z = 0; z < 5; z++) {
-            const wallData = {
-                id: `${wallId}_${x}_${z}`,
-                position: {
-                    x: (x - 2) * wallSize, // Centered at 0
-                    y: wallHeight / 2,
-                    z: (z - 2) * wallSize
-                },
-                rotation: { x: 0, y: 0, z: 0 },
-                scale: { x: 1, y: 1, z: 1 },
-                color: 0xcccccc // Light gray color
-            };
-            walls.push(wallData);
-        }
-    }
-}
-
 // Function to get random spawn position, avoiding overlap with existing users
 function getRandomSpawnPosition(existingUsers) {
     const minX = -20;
@@ -89,9 +63,6 @@ io.on('connection', socket => {
 
     // Get name from handshake query
     const name = socket.handshake.query && socket.handshake.query.name ? String(socket.handshake.query.name) : `User`;
-
-    // Create a 5x5 wall when a player connects
-    create5x5Wall();
 
     // Add to user list with random spawn position
     users[socket.id] = { 

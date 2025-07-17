@@ -199,7 +199,7 @@ body.build-mode.dragging {
 /* Users List */
 .users-container {
   position: fixed;
-  top: 75px;
+  top: 80px;
   left: 10px;
   width: 150px;
   background: rgba(0, 0, 0, 0.85);
@@ -238,9 +238,9 @@ body.build-mode.dragging {
 
 /* New tab button positioning */
 button[onclick="window.open(window.location.href, '_blank')"] {
-  position: fixed;
+  position: absolute;
   top: 20 px;
-  right: 15px;
+  right: 100px;
   padding: 8px 16px;
   background: #1976d2;
   color: white;
@@ -258,7 +258,7 @@ button[onclick="window.open(window.location.href, '_blank')"]:hover {
 .audio-controls {
   position: fixed;
   top: 15px;
-  right: 180px;
+  right: 40px;
   z-index: 1000;
 }
 
@@ -358,7 +358,7 @@ button[onclick="window.open(window.location.href, '_blank')"]:hover {
   padding: 1em;
   border-radius: 8px;
   font-size: 0.9em;
-  width: 300px;
+  width: 600px;
   z-index: 1000;
 }
 
