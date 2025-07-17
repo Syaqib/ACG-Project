@@ -119,13 +119,111 @@ transformControls.addEventListener('objectChange', function (event) {
     }
 });
 
+// === AUDIO STATE ===
+let isMuted = false;
+let backgroundMusic = null;
+
+// Audio initialization and control functions
+function initializeAudio() {
+    backgroundMusic = document.getElementById('backgroundMusic');
+    
+    // Set initial volume
+    backgroundMusic.volume = 0.2; // 20% volume
+    
+    // Set up mute button
+    const muteBtn = document.getElementById('muteBtn');
+    const muteIcon = document.getElementById('muteIcon');
+    
+    muteBtn.addEventListener('click', () => {
+        if (isMuted) {
+            // Unmute
+            backgroundMusic.muted = false;
+            muteIcon.textContent = '🔊';
+            isMuted = false;
+        } else {
+            // Mute
+            backgroundMusic.muted = true;
+            muteIcon.textContent = '🔇';
+            isMuted = true;
+        }
+    });
+    
+    // Remove volume slider logic
+    // const volumeSlider = document.getElementById('volumeSlider');
+    // volumeSlider.addEventListener('input', (e) => {
+    //     const volume = e.target.value / 100;
+    //     backgroundMusic.volume = volume;
+    //     if (volume === 0) {
+    //         muteIcon.textContent = '🔇';
+    //         isMuted = true;
+    //     } else if (isMuted) {
+    //         muteIcon.textContent = '🔊';
+    //         isMuted = false;
+    //     }
+    // });
+}
+
+function startBackgroundMusic() {
+    if (backgroundMusic) {
+        // Try to play the music
+        backgroundMusic.play().catch(error => {
+            console.log('Audio autoplay was prevented or file not found:', error);
+            // This is normal - browsers block autoplay until user interaction
+            // or the audio file might not be available
+        });
+        
+        // Show audio controls
+        document.getElementById('audioControls').style.display = 'block';
+        
+        // Add error handling for audio loading
+        backgroundMusic.addEventListener('error', (e) => {
+            console.log('Audio file could not be loaded:', e);
+            // Could implement fallback audio generation here if needed
+        });
+    }
+}
+
+// Chat minimize functionality
+function initializeChatMinimize() {
+    const chatContainer = document.getElementById('chatContainer');
+    const minimizeBtn = document.getElementById('minimizeChatBtn');
+    const chatHeader = document.getElementById('chatHeader');
+    
+    if (minimizeBtn && chatContainer) {
+        // Toggle minimize state
+        minimizeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            chatContainer.classList.toggle('minimized');
+            
+            // Update button text
+            if (chatContainer.classList.contains('minimized')) {
+                minimizeBtn.textContent = '+';
+                minimizeBtn.title = 'Expand Chat';
+            } else {
+                minimizeBtn.textContent = '−';
+                minimizeBtn.title = 'Minimize Chat';
+            }
+        });
+        
+        // Allow clicking header to expand if minimized
+        chatHeader.addEventListener('click', () => {
+            if (chatContainer.classList.contains('minimized')) {
+                chatContainer.classList.remove('minimized');
+                minimizeBtn.textContent = '−';
+                minimizeBtn.title = 'Minimize Chat';
+            }
+        });
+    }
+}
+
+
+
 // === BUILD MODE STATE ===
 let buildMode = false;
 let draggedItem = null;
 let draggedItemRotation = 0;
 let dragPosition = null;
 let canDrop = false;
-let onFloor = false;
 let dragPreview = null; // Visual preview of dragged item
 let guiSelectedObject = null; // Object selected via GUI
 let originalTransform = null; // Store original transform for reset
@@ -140,8 +238,21 @@ const SELECTED_COLOR = 0x2222ff;  // Blue
 const NORMAL_EMISSIVE = 0x000000;
 const DRAG_HIGHLIGHT = 0xffaa00; // Orange for drag preview
 
+// --- Fix for keydown/keyup event handlers ---
 document.addEventListener('keydown', e => {
+    if (!e.key) return;
     keys[e.key.toLowerCase()] = true;
+    
+    // Global keyboard shortcuts
+    if (e.key.toLowerCase() === 'm') {
+        // Toggle mute with 'M' key
+        const muteBtn = document.getElementById('muteBtn');
+        if (muteBtn) {
+            muteBtn.click();
+        }
+        return;
+    }
+    
     if (!selectedWall) return;
     switch (e.key.toLowerCase()) {
         case 't':
@@ -155,7 +266,10 @@ document.addEventListener('keydown', e => {
             break;
     }
 });
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+document.addEventListener('keyup', e => {
+    if (!e.key) return;
+    keys[e.key.toLowerCase()] = false;
+});
 
 let velocity = new THREE.Vector3();
 let forward = new THREE.Vector3();
@@ -279,7 +393,7 @@ function createObject({ type, modelPath, userDataKey, emitEvent, defaultProps = 
             const obj = gltf.scene;
             obj.position.set(0, 1, 0);
             obj.userData[userDataKey] = true;
-            obj.scale.set(0.5, 0.5, 0.5); // Make table smaller
+            obj.scale.set(0.3, 0.3, 0.3); // Make table more realistic size
             obj.userData.size = [2, 2]; // Grid size
             obj.userData.gridPosition = vector3ToGrid(obj.position);
             
@@ -476,7 +590,7 @@ function selectWall(wall) {
         if (child.userData.isSelectionBox) {
             child.material.opacity = 0.3;
             child.material.color.setHex(SELECTED_COLOR);
-        }
+    }
     });
     
     // Attach transform controls
@@ -623,7 +737,6 @@ document.addEventListener('mousemove', (event) => {
     // Check floor hover
     const floorIntersects = raycaster.intersectObject(floor);
     if (floorIntersects.length > 0) {
-        onFloor = true;
         if (draggedItem !== null) {
             const point = floorIntersects[0].point;
             const newGridPos = vector3ToGrid(point);
@@ -639,8 +752,6 @@ document.addEventListener('mousemove', (event) => {
                 }
             }
         }
-    } else {
-        onFloor = false;
     }
     
     // Hover effect for non-dragged objects
@@ -753,15 +864,6 @@ function createPlayerModel(userId, position, onLoaded) {
 }
 
 let socket; // Global socket variable
-
-function generateTableId() {
-    return 'table_' + Math.random().toString(36).substr(2, 9);
-}
-
-// === UTILITY ===
-function snapToGrid(value, gridSize = 1) {
-    return Math.round(value / gridSize) * gridSize;
-}
 
 // Helper to play animation for a player
 function setPlayerAnimation(userId, moving) {
@@ -969,6 +1071,12 @@ function confirmTransformChanges() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize audio
+    initializeAudio();
+    
+    // Initialize chat minimize functionality
+    initializeChatMinimize();
+    
     // Splash screen logic
     const splash = document.getElementById('splashScreen');
     const mainMenu = document.getElementById('mainMenu');
@@ -982,18 +1090,28 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('confirmTransform')?.addEventListener('click', confirmTransformChanges);
     document.getElementById('resetTransform')?.addEventListener('click', resetTransform);
     
-    // Set up real-time transform updates
-    const transformInputs = ['posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ'];
-    transformInputs.forEach(id => {
-        const input = document.getElementById(id);
-        if (input) {
-            input.addEventListener('input', () => {
-                if (guiSelectedObject) {
-                    applyTransformFromGUI();
+            // Set up real-time transform updates
+        const transformInputs = ['posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ'];
+        transformInputs.forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                input.addEventListener('input', () => {
+                    if (guiSelectedObject) {
+                        applyTransformFromGUI();
+                    }
+                });
+            }
+        });
+        
+        // Add Enter key support for chat
+        const msgInput = document.getElementById('msg');
+        if (msgInput) {
+            msgInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
                 }
             });
         }
-    });
     
     // === MAIN MENU LOGIN ===
     let playerName = '';
@@ -1034,13 +1152,13 @@ document.addEventListener('DOMContentLoaded', function() {
         hideMainMenu();
         gameStarted = true;
         startGame();
+        // Start background music when game starts
+        startBackgroundMusic();
     };
 
     // --- Socket/game logic moved to a function ---
     function startGame() {
         socket = io('http://localhost:3000', { query: { name: playerName } });
-        let currentUser = "";
-        window._socket = socket; // for debugging
 
         socket.on('connect', () => {
             console.log('Connected to server as:', socket.id, 'with name', playerName);
@@ -1200,7 +1318,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     scene.add(chair);
                     selectableObjects.push(chair);
-                });
+            });
             });
             
             // Update GUI after loading chairs
@@ -1214,69 +1332,32 @@ document.addEventListener('DOMContentLoaded', function() {
             if (mode !== 'play') return;
             const player = scene.getObjectByName(socket.id);
             if (!player) return;
-            
-            // Camera follow settings
-            const cameraDistance = 10; // Distance behind player
-            const cameraHeight = 4;   // Height above player
-            const cameraLookAhead = 2; // Look ahead distance
-            const cameraSmoothness = 0.03; // Much smoother camera movement (was 0.1)
-            
-            velocity.set(0, 0, 0);
-            forward.set(0, 0, 0);
-            right.set(0, 0, 0);
-            camera.getWorldDirection(forward);
-            forward.y = 0;
-            forward.normalize();
-            right.copy(forward).cross(camera.up).normalize();
             let moving = false;
-            let moveDir = new THREE.Vector3();
-            if (keys['w']) { velocity.add(forward); moveDir.add(forward); moving = true; }
-            if (keys['s']) { velocity.sub(forward); moveDir.sub(forward); moving = true; }
-            if (keys['a']) { velocity.sub(right); moveDir.sub(right); moving = true; }
-            if (keys['d']) { velocity.add(right); moveDir.add(right); moving = true; }
-            if (velocity.lengthSq() > 0) {
-                velocity.normalize().multiplyScalar(0.05);
-                player.position.add(velocity);
+
+            // WASD movement in world space
+            const moveSpeed = 0.1;
+            let moveX = 0, moveZ = 0;
+            if (keys['w']) { moveZ += moveSpeed; moving = true; } // forward
+            if (keys['s']) { moveZ -= moveSpeed; moving = true; } // backward
+            if (keys['a']) { moveX += moveSpeed; moving = true; } // left
+            if (keys['d']) { moveX -= moveSpeed; moving = true; } // right
+            if (moveX !== 0 || moveZ !== 0) {
+                player.position.x += moveX;
+                player.position.z += moveZ;
+                // Set player rotation to face movement direction (fix left/right)
+                const angle = Math.atan2(moveX, moveZ);
+                player.rotation.y = angle;
                 socket.emit('move', {
                     id: socket.id,
                     position: player.position,
                     moving: moving
                 });
-                // Rotate player to face movement direction
-                if (moveDir.lengthSq() > 0) {
-                    moveDir.normalize();
-                    const angle = Math.atan2(moveDir.x, moveDir.z);
-                    player.rotation.y = angle;
-                }
             }
-            
-            // Smooth camera follow
-            const targetCameraPosition = new THREE.Vector3();
-            const playerDirection = new THREE.Vector3();
-            player.getWorldDirection(playerDirection);
-            
-            // Calculate camera position behind player
-            targetCameraPosition.copy(player.position);
-            targetCameraPosition.sub(playerDirection.clone().multiplyScalar(cameraDistance));
-            targetCameraPosition.y = player.position.y + cameraHeight;
-            
-            // Smooth camera movement
-            camera.position.lerp(targetCameraPosition, cameraSmoothness);
-            
-            // Calculate look target (slightly ahead of player)
-            const lookTarget = new THREE.Vector3();
-            lookTarget.copy(player.position);
-            lookTarget.add(playerDirection.clone().multiplyScalar(cameraLookAhead));
-            lookTarget.y = player.position.y + 1; // Look at player's head level
-            
-            // Smooth camera look with damping
-            const currentLookTarget = new THREE.Vector3();
-            camera.getWorldDirection(currentLookTarget);
-            currentLookTarget.multiplyScalar(5).add(camera.position);
-            
-            const smoothLookTarget = new THREE.Vector3();
-            smoothLookTarget.lerpVectors(currentLookTarget, lookTarget, cameraSmoothness);
-            camera.lookAt(smoothLookTarget);
+
+            // Camera always at fixed offset
+            const cameraOffset = new THREE.Vector3(0, 5, -10);
+            camera.position.copy(player.position).add(cameraOffset);
+            camera.lookAt(player.position);
             
             // Animation switching for local player
             setPlayerAnimation(socket.id, moving);

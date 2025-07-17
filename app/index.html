@@ -17,13 +17,24 @@
         <button id="enterGameBtn" style="font-size:1.2em;margin-top:1em;">Enter Game</button>
         <p id="loginError" style="color:red;"></p>
     </div>
-    <h1>Virtual Showroom Explorer</h1>
     <div id="modeBar" class="mode-bar">
         <button id="toggleModeBtn" class="edit-btn">Switch to Edit Mode</button>
         <button id="addWallBtn" class="edit-btn" style="display:none;">Add Wall</button>
         <button id="addTableBtn" class="edit-btn" style="display:none;">Add Table</button>
         <!-- Add Chair and Delete buttons will be injected by JS with class="edit-btn" -->
     </div>
+    
+    <!-- Audio Controls -->
+    <div id="audioControls" class="audio-controls" style="display:none;">
+        <button id="muteBtn" class="audio-btn" title="Toggle Mute (M)">
+            <span id="muteIcon">🔊</span>
+        </button>
+    </div>
+    
+    <!-- Background Music -->
+    <audio id="backgroundMusic" loop>
+        <source src="Virtual Showroom Explorer BGM.mp3" type="audio/mpeg">
+    </audio>
     
     <!-- Object List Panel -->
     <div id="objectListPanel" class="object-list-panel" style="display:none;">
@@ -66,14 +77,31 @@
         </div>
     </div>
     
-    <input id="msg" type="text" placeholder="Message" />
-    <button onclick="sendMessage()">Send</button>
-    <button onclick="window.open(window.location.href, '_blank')">Open this in new tab</button>
-    <p id="error" style="color:red"></p>
-    <ul id="messages"></ul>
+    <!-- Chat Interface -->
+    <div id="chatContainer" class="chat-container">
+        <div id="chatHeader" class="chat-header">
+            <span class="chat-title">Chat</span>
+            <button id="minimizeChatBtn" class="minimize-btn" title="Minimize Chat">−</button>
+        </div>
+        <div id="chatContent" class="chat-content">
+            <div id="messages" class="messages"></div>
+            <div class="chat-input-container">
+                <input id="msg" type="text" placeholder="Type a message..." />
+                <button id="sendBtn" onclick="sendMessage()" class="send-btn">Send</button>
+            </div>
+            <p id="error" class="error-message"></p>
+        </div>
+    </div>
 
-    Current Users
-    <ul id="users"></ul>
+    <!-- Users List -->
+    <div id="usersContainer" class="users-container">
+        <div class="users-header">
+            <span class="users-title">Online</span>
+        </div>
+        <ul id="users" class="users-list"></ul>
+    </div>
+
+    <button onclick="window.open(window.location.href, '_blank')">Open this in new tab</button>
 
     <!-- <div id="threejs"></div> -->
 
